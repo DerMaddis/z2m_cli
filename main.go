@@ -11,6 +11,7 @@ import (
 
 	"github.com/dermaddis/z2m_cli/actions"
 	"github.com/dermaddis/z2m_cli/devices"
+	"github.com/hashicorp/go-multierror"
 )
 
 const usage = `
@@ -18,6 +19,7 @@ Usage: z2m [device] [actions]
 `
 
 func main() {
+	var globalErr error
 	// 1: _; 2: device(s); 3: action(s)
 	if len(os.Args) < 3 {
 		fmt.Print(usage)
@@ -37,19 +39,16 @@ func main() {
 
 	devices, err := devices.Parse(devicesStr)
 	if err != nil {
-		fmt.Println("❌ | ", err)
-		os.Exit(1)
+		globalErr = multierror.Append(globalErr, err)
 	}
 	actions, err := actions.Parse(actionsStr)
 	if err != nil {
-		fmt.Println("❌ | ", err)
-		os.Exit(1)
+		globalErr = multierror.Append(globalErr, err)
 	}
 
 	client, err := NewFirestoreClient()
 	if err != nil {
-		fmt.Println("❌ | Could not init firestore", err)
-		os.Exit(1)
+		globalErr = multierror.Append(globalErr, err)
 	}
 	deviceCollection := client.Collection("state")
 
@@ -66,6 +65,11 @@ func main() {
 		if err != nil {
 			panic(fmt.Errorf("could not update %s: %w", device, err))
 		}
+	}
+
+	if globalErr != nil {
+		fmt.Printf("❌ \n %s", globalErr.Error())
+		os.Exit(1)
 	}
 	fmt.Println("✅")
 }
